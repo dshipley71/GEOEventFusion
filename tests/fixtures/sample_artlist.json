@@ -1,0 +1,84 @@
+{
+  "articles": [
+    {
+      "url": "https://www.reuters.com/world/middle-east/houthi-forces-attack-merchant-vessel-red-sea-2024-01-15/",
+      "title": "Houthi forces attack merchant vessel in Red Sea near Yemen",
+      "seendate": "20240115120000",
+      "socialimage": "https://cloudfront-us-east-2.images.arcpublishing.com/reuters/sample1.jpg",
+      "domain": "reuters.com",
+      "language": "English",
+      "sourcecountry": "United States",
+      "tone": -5.2
+    },
+    {
+      "url": "https://apnews.com/article/houthi-red-sea-attack-shipping-2024-01-16",
+      "title": "US Navy intercepts Houthi missiles targeting commercial ships",
+      "seendate": "20240116083000",
+      "socialimage": "https://apnews.com/images/sample2.jpg",
+      "domain": "apnews.com",
+      "language": "English",
+      "sourcecountry": "United States",
+      "tone": -6.1
+    },
+    {
+      "url": "https://www.bbc.com/news/world-middle-east-68001234",
+      "title": "Red Sea crisis: Shipping companies reroute around Africa",
+      "seendate": "20240117094500",
+      "socialimage": "https://ichef.bbci.co.uk/news/sample3.jpg",
+      "domain": "bbc.com",
+      "language": "English",
+      "sourcecountry": "United Kingdom",
+      "tone": -3.8
+    },
+    {
+      "url": "https://www.aljazeera.com/news/2024/1/18/houthi-says-attack-supports-palestinians",
+      "title": "Houthi movement says Red Sea attacks will continue until Gaza ceasefire",
+      "seendate": "20240118110000",
+      "socialimage": "https://www.aljazeera.com/images/sample4.jpg",
+      "domain": "aljazeera.com",
+      "language": "English",
+      "sourcecountry": "Qatar",
+      "tone": -4.5
+    },
+    {
+      "url": "https://www.ft.com/content/houthi-shipping-costs-surge-2024",
+      "title": "Shipping costs surge as Red Sea attacks disrupt global trade routes",
+      "seendate": "20240119140000",
+      "socialimage": "https://www.ft.com/images/sample5.jpg",
+      "domain": "ft.com",
+      "language": "English",
+      "sourcecountry": "United Kingdom",
+      "tone": -2.9
+    },
+    {
+      "url": "https://www.nytimes.com/2024/01/20/world/middleeast/red-sea-houthi.html",
+      "title": "United States and Britain strike Houthi targets in Yemen",
+      "seendate": "20240120070000",
+      "socialimage": "https://static01.nyt.com/images/sample6.jpg",
+      "domain": "nytimes.com",
+      "language": "English",
+      "sourcecountry": "United States",
+      "tone": -7.3
+    },
+    {
+      "url": "https://www.washingtonpost.com/world/2024/01/21/red-sea-shipping-military/",
+      "title": "Pentagon deploys additional warships to Red Sea amid Houthi threat",
+      "seendate": "20240121160000",
+      "socialimage": "https://www.washingtonpost.com/images/sample7.jpg",
+      "domain": "washingtonpost.com",
+      "language": "English",
+      "sourcecountry": "United States",
+      "tone": -4.1
+    },
+    {
+      "url": "https://www.theguardian.com/world/2024/jan/22/red-sea-houthi-attack-eu-mission",
+      "title": "European Union launches naval mission to protect Red Sea shipping",
+      "seendate": "20240122093000",
+      "socialimage": "https://i.guim.co.uk/img/sample8.jpg",
+      "domain": "theguardian.com",
+      "language": "English",
+      "sourcecountry": "United Kingdom",
+      "tone": -1.5
+    }
+  ]
+}
