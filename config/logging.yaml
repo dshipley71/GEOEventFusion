@@ -1,0 +1,91 @@
+version: 1
+disable_existing_loggers: false
+
+formatters:
+  standard:
+    format: "%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S"
+
+  detailed:
+    format: "%(asctime)s [%(levelname)s] %(name)s (%(filename)s:%(lineno)d): %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S"
+
+  run_context:
+    # Includes run_id when injected via LoggerAdapter
+    format: "%(asctime)s [%(levelname)s] [%(run_id)s] %(name)s: %(message)s"
+    datefmt: "%Y-%m-%dT%H:%M:%S"
+
+handlers:
+  console:
+    class: logging.StreamHandler
+    level: INFO
+    formatter: standard
+    stream: ext://sys.stdout
+
+  file:
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: detailed
+    filename: geoeventfusion.log
+    mode: a
+    encoding: utf-8
+
+  run_file:
+    # Overridden at runtime to write to outputs/runs/<run_id>/run.log
+    class: logging.FileHandler
+    level: DEBUG
+    formatter: detailed
+    filename: geoeventfusion.log
+    mode: a
+    encoding: utf-8
+
+loggers:
+  geoeventfusion:
+    level: DEBUG
+    handlers: [console, file]
+    propagate: false
+
+  geoeventfusion.agents:
+    level: DEBUG
+    handlers: [console]
+    propagate: true
+
+  geoeventfusion.clients:
+    level: INFO
+    handlers: [console]
+    propagate: true
+
+  geoeventfusion.analysis:
+    level: DEBUG
+    handlers: [console]
+    propagate: true
+
+  # Suppress noisy third-party loggers
+  urllib3:
+    level: WARNING
+    handlers: [console]
+    propagate: false
+
+  httpx:
+    level: WARNING
+    handlers: [console]
+    propagate: false
+
+  feedparser:
+    level: WARNING
+    handlers: [console]
+    propagate: false
+
+  trafilatura:
+    level: ERROR
+    handlers: [console]
+    propagate: false
+
+  newspaper:
+    level: ERROR
+    handlers: [console]
+    propagate: false
+
+root:
+  level: WARNING
+  handlers: [console]
