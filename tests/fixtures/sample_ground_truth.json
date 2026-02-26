@@ -1,0 +1,92 @@
+{
+  "events": [
+    {
+      "event_id": "YEM-2023-10-19-001",
+      "source": "acled",
+      "event_type": "Remote violence",
+      "date": "2023-10-19",
+      "country": "Yemen",
+      "region": "Al Hudaydah",
+      "lat": 14.7975,
+      "lon": 42.9511,
+      "actors": ["Houthi Movement (Ansar Allah)", "Israel"],
+      "fatalities": 0,
+      "notes": "Houthi forces fired ballistic missiles toward Israel. No casualties reported.",
+      "confidence": 1.0
+    },
+    {
+      "event_id": "YEM-2023-11-19-001",
+      "source": "acled",
+      "event_type": "Violence against civilians",
+      "date": "2023-11-19",
+      "country": "Yemen",
+      "region": "Red Sea",
+      "lat": 13.9,
+      "lon": 43.2,
+      "actors": ["Houthi Movement (Ansar Allah)"],
+      "fatalities": 0,
+      "notes": "Houthi naval forces seized Israeli-linked cargo vessel Galaxy Leader in Red Sea.",
+      "confidence": 1.0
+    },
+    {
+      "event_id": "YEM-2023-12-03-001",
+      "source": "acled",
+      "event_type": "Remote violence",
+      "date": "2023-12-03",
+      "country": "Yemen",
+      "region": "Bab el-Mandeb",
+      "lat": 12.6,
+      "lon": 43.4,
+      "actors": ["Houthi Movement (Ansar Allah)", "Unspecified"],
+      "fatalities": 0,
+      "notes": "Houthi forces attacked multiple commercial vessels with drones and missiles in Bab el-Mandeb Strait.",
+      "confidence": 0.95
+    },
+    {
+      "event_id": "YEM-2023-12-18-001",
+      "source": "acled",
+      "event_type": "Non-violent action",
+      "date": "2023-12-18",
+      "country": "International Waters",
+      "region": "Red Sea",
+      "lat": 15.5,
+      "lon": 42.8,
+      "actors": ["United States", "Coalition Forces"],
+      "fatalities": 0,
+      "notes": "US announces Operation Prosperity Guardian multinational maritime security coalition.",
+      "confidence": 1.0
+    },
+    {
+      "event_id": "YEM-2024-01-09-001",
+      "source": "acled",
+      "event_type": "Remote violence",
+      "date": "2024-01-09",
+      "country": "Yemen",
+      "region": "Bab el-Mandeb",
+      "lat": 12.5,
+      "lon": 43.3,
+      "actors": ["Houthi Movement (Ansar Allah)", "US Navy"],
+      "fatalities": 10,
+      "notes": "US Navy engages Houthi attack boats in largest naval battle since Operation Praying Mantis. 10 Houthi fighters killed.",
+      "confidence": 0.95
+    },
+    {
+      "event_id": "YEM-2024-01-12-001",
+      "source": "acled",
+      "event_type": "Air/drone strike",
+      "date": "2024-01-12",
+      "country": "Yemen",
+      "region": "Sana'a",
+      "lat": 15.3694,
+      "lon": 44.1910,
+      "actors": ["United States", "United Kingdom", "Houthi Movement (Ansar Allah)"],
+      "fatalities": 5,
+      "notes": "US and UK conduct joint airstrikes on over 60 Houthi military targets across Yemen.",
+      "confidence": 1.0
+    }
+  ],
+  "source_counts": {
+    "acled": 6,
+    "icews": 0
+  }
+}

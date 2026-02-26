@@ -436,7 +436,7 @@ def _export_charts(context: Any, charts_dir: Path) -> Dict[str, str]:
     # Actor network chart
     if gdelt and gdelt.actor_graph:
         try:
-            from geoeventfusion.visualization.actor_network_chart import render_actor_network_chart
+            from geoeventfusion.visualization.actor_network import render_actor_network_chart
 
             chart_path = charts_dir / "actor_network.png"
             result_path = render_actor_network_chart(
@@ -453,7 +453,7 @@ def _export_charts(context: Any, charts_dir: Path) -> Dict[str, str]:
     # Choropleth / source country map
     if gdelt and gdelt.country_stats:
         try:
-            from geoeventfusion.visualization.choropleth_chart import render_choropleth_map
+            from geoeventfusion.visualization.choropleth import render_choropleth_map
 
             chart_path = charts_dir / "source_country_map.html"
             result_path = render_choropleth_map(

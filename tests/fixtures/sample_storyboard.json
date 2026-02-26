@@ -1,0 +1,82 @@
+{
+  "query": "Houthi Red Sea attacks",
+  "date_range": {"start": "2023-10-18", "end": "2024-01-16"},
+  "panels": [
+    {
+      "panel_id": "panel_001",
+      "date_range": {"start": "2023-10-18", "end": "2023-11-30"},
+      "headline": "Houthi Forces Launch Initial Red Sea Campaign Against Shipping",
+      "key_events": [
+        {
+          "date": "2023-10-19",
+          "description": "Houthi forces launch ballistic missiles toward Israel, opening maritime campaign",
+          "source_title": "Houthi forces fire missiles toward Israel in show of solidarity with Gaza",
+          "source_url": "https://www.reuters.com/world/middle-east/houthi-forces-fire-missiles-toward-israel-2023-10-19",
+          "verified": true
+        },
+        {
+          "date": "2023-11-19",
+          "description": "Houthis seize Galaxy Leader cargo ship in Red Sea, first direct vessel seizure",
+          "source_title": "Houthis seize Israeli-linked cargo ship Galaxy Leader in Red Sea",
+          "source_url": "https://www.bbc.com/news/world-middle-east-67462813",
+          "verified": true
+        }
+      ],
+      "actors": [
+        {"name": "Houthi", "role": "Hub", "centrality_score": 0.85},
+        {"name": "United States", "role": "Broker", "centrality_score": 0.62},
+        {"name": "Israel", "role": "Peripheral", "centrality_score": 0.34}
+      ],
+      "narrative_summary": "In the initial phase, Houthi forces (Ansar Allah) began a sustained military campaign targeting shipping in the Red Sea and Bab el-Mandeb Strait in solidarity with Gaza. The seizure of the Galaxy Leader marked the first direct vessel capture and set the precedent for subsequent interdictions.",
+      "confidence": 0.74,
+      "grounded_sources": [
+        "https://www.reuters.com/world/middle-east/houthi-forces-fire-missiles-toward-israel-2023-10-19",
+        "https://www.bbc.com/news/world-middle-east-67462813"
+      ],
+      "unverified_elements": [],
+      "recommended_followup": ["Galaxy Leader crew status", "Houthi command structure"]
+    },
+    {
+      "panel_id": "panel_002",
+      "date_range": {"start": "2023-12-01", "end": "2024-01-16"},
+      "headline": "US-Led Coalition Forms as Houthi Attacks Escalate to Critical Infrastructure",
+      "key_events": [
+        {
+          "date": "2023-12-18",
+          "description": "United States announces Operation Prosperity Guardian coalition to protect Red Sea shipping",
+          "source_title": "US announces multinational military operation to protect Red Sea shipping",
+          "source_url": "https://www.theguardian.com/world/2023/dec/18/us-operation-prosperity-guardian-red-sea",
+          "verified": true
+        },
+        {
+          "date": "2024-01-12",
+          "description": "US and UK conduct joint airstrikes on Houthi targets in Yemen",
+          "source_title": "US and UK launch military strikes against Houthi targets in Yemen",
+          "source_url": "https://www.reuters.com/world/us-uk-launch-military-strikes-houthi-targets-yemen-2024-01-12",
+          "verified": true
+        }
+      ],
+      "actors": [
+        {"name": "United States", "role": "Hub", "centrality_score": 0.88},
+        {"name": "United Kingdom", "role": "Broker", "centrality_score": 0.71},
+        {"name": "Houthi", "role": "Hub", "centrality_score": 0.82}
+      ],
+      "narrative_summary": "Escalating Houthi attacks on commercial shipping prompted the United States to form Operation Prosperity Guardian, a multinational coalition. When attacks continued, the US and UK launched direct airstrikes on Houthi military installations in Yemen, marking a significant escalation of international military involvement.",
+      "confidence": 0.78,
+      "grounded_sources": [
+        "https://www.theguardian.com/world/2023/dec/18/us-operation-prosperity-guardian-red-sea",
+        "https://www.reuters.com/world/us-uk-launch-military-strikes-houthi-targets-yemen-2024-01-12"
+      ],
+      "unverified_elements": ["Iranian coordination with Houthi command"],
+      "recommended_followup": ["Operation Prosperity Guardian coalition status", "Houthi retaliation patterns"]
+    }
+  ],
+  "overall_confidence": 0.76,
+  "escalation_risk": 0.68,
+  "max_confidence_cap": 0.82,
+  "recommended_followup": [
+    "Monitor Houthi missile acquisition from Iran",
+    "Track commercial shipping rerouting around Cape of Good Hope"
+  ],
+  "generation_timestamp": "2024-01-16T12:00:00Z"
+}
