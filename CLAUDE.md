@@ -1,3 +1,6 @@
+@AGENTS.md
+@skills.sh
+
 # claude.md
 ## GEOEventFusion — AI Assistant Project Guide
 Version: 1.0
