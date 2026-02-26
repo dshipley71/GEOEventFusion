@@ -77,7 +77,7 @@ files before writing new code.
 - Always request JSON-only output and apply defensive parsing (strip fences, find boundaries)
 - Always retry once on empty LLM response before failing
 - Current default Anthropic model: `claude-sonnet-4-6`
-- Current default Ollama model: `gemma3:27b`
+- Current default Ollama model: `gpt-oss:120b`
 
 ---
 
