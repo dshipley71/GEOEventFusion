@@ -1,0 +1,22 @@
+[
+  {"tone_value": -10.0, "count": 12},
+  {"tone_value": -9.0,  "count": 18},
+  {"tone_value": -8.0,  "count": 27},
+  {"tone_value": -7.0,  "count": 45},
+  {"tone_value": -6.0,  "count": 63},
+  {"tone_value": -5.0,  "count": 89},
+  {"tone_value": -4.0,  "count": 134},
+  {"tone_value": -3.0,  "count": 178},
+  {"tone_value": -2.0,  "count": 201},
+  {"tone_value": -1.0,  "count": 189},
+  {"tone_value":  0.0,  "count": 142},
+  {"tone_value":  1.0,  "count": 98},
+  {"tone_value":  2.0,  "count": 67},
+  {"tone_value":  3.0,  "count": 41},
+  {"tone_value":  4.0,  "count": 23},
+  {"tone_value":  5.0,  "count": 14},
+  {"tone_value":  6.0,  "count": 8},
+  {"tone_value":  7.0,  "count": 4},
+  {"tone_value":  8.0,  "count": 2},
+  {"tone_value":  9.0,  "count": 1}
+]
