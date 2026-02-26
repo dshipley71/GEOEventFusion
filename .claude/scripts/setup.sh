@@ -19,6 +19,7 @@ if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
     # ── Production dependencies ───────────────────────────────────────────────
     pip install --quiet \
         "anthropic>=0.40.0" \
+        "ollama>=0.6.1" \
         "requests>=2.31.0" \
         "networkx>=3.2" \
         "matplotlib>=3.8" \
@@ -47,7 +48,7 @@ if [ "$CLAUDE_CODE_REMOTE" = "true" ]; then
     # ── Verify key imports ────────────────────────────────────────────────────
     echo "Verifying critical imports..."
     python3 -c "
-import anthropic, requests, networkx, matplotlib, scipy, numpy
+import anthropic, ollama, requests, networkx, matplotlib, scipy, numpy
 import pydantic, dotenv, Levenshtein, tqdm, feedparser, trafilatura
 import pytest, ruff
 print('  ✓ All critical imports verified')
