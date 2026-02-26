@@ -1,5 +1,5 @@
 @AGENTS.md
-@skills.sh
+@skills.md
 
 # CLAUDE.md
 ## GEOEventFusion — AI Assistant Project Guide
