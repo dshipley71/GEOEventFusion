@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, call, patch
 
 import pytest
 
-from geoeventfusion.clients.gdelt_client import GDELTClient, _safe_parse_json
+from geoeventfusion.clients.gdelt_client import GDELTClient, _safe_parse_json, _parse_timespan_days
 
 
 # ── _safe_parse_json ──────────────────────────────────────────────────────────────
@@ -321,6 +321,114 @@ class TestGDELTClientFetch:
         assert "startdatetime" in call_url
         assert "enddatetime" in call_url
         assert "TIMESPAN" not in call_url
+
+    def test_fetch_distribute_calls_multiple_buckets(self):
+        """distribute=True over 30 days must make ceil(30/7)=5 bucket GET calls."""
+        client = self._make_client()
+        # 30d → 5 weekly buckets; supply exactly 5 responses
+        responses = [
+            self._mock_response(
+                200,
+                json.dumps({"articles": [{"url": f"https://x.com/{i}", "title": f"T{i}"}]}),
+            )
+            for i in range(5)
+        ]
+        with patch.object(client._session, "get", side_effect=responses) as mock_get:
+            result = client.fetch("Houthi", "ArtList", max_records=50, timespan="30d", distribute=True)
+
+        assert mock_get.call_count == 5
+        assert result is not None
+        assert len(result["articles"]) == 5
+
+    def test_fetch_distribute_merges_articles_from_buckets(self):
+        """distribute=True must combine articles from all bucket responses."""
+        client = self._make_client()
+        # 14d → ceil(14/7) = 2 buckets, one unique article each
+        responses = [
+            self._mock_response(200, json.dumps({"articles": [{"url": "https://x.com/a1", "title": "A1"}]})),
+            self._mock_response(200, json.dumps({"articles": [{"url": "https://x.com/a2", "title": "A2"}]})),
+        ]
+        with patch.object(client._session, "get", side_effect=responses):
+            result = client.fetch("Houthi", "ArtList", max_records=50, timespan="14d", distribute=True)
+
+        assert result is not None
+        assert len(result["articles"]) == 2
+        urls = {a["url"] for a in result["articles"]}
+        assert urls == {"https://x.com/a1", "https://x.com/a2"}
+
+    def test_fetch_distribute_deduplicates_by_url(self):
+        """distribute=True must not include the same URL more than once."""
+        client = self._make_client()
+        same = {"url": "https://x.com/dup", "title": "Dup"}
+        responses = [
+            self._mock_response(200, json.dumps({"articles": [same]})),
+            self._mock_response(200, json.dumps({"articles": [same]})),
+        ]
+        with patch.object(client._session, "get", side_effect=responses):
+            result = client.fetch("Houthi", "ArtList", max_records=50, timespan="14d", distribute=True)
+
+        assert result is not None
+        assert len(result["articles"]) == 1
+
+    def test_fetch_distribute_caps_at_max_records(self):
+        """distribute=True must not return more articles than max_records."""
+        client = self._make_client()
+        bucket1 = [{"url": f"https://x.com/a{i}", "title": f"A{i}"} for i in range(10)]
+        bucket2 = [{"url": f"https://x.com/b{i}", "title": f"B{i}"} for i in range(10)]
+        responses = [
+            self._mock_response(200, json.dumps({"articles": bucket1})),
+            self._mock_response(200, json.dumps({"articles": bucket2})),
+        ]
+        with patch.object(client._session, "get", side_effect=responses):
+            result = client.fetch("Houthi", "ArtList", max_records=15, timespan="14d", distribute=True)
+
+        assert result is not None
+        assert len(result["articles"]) <= 15
+
+    def test_fetch_distribute_without_time_window_falls_back(self):
+        """distribute=True with no timespan or dates must fall back to a normal single fetch."""
+        client = self._make_client()
+        payload = json.dumps({"articles": [{"url": "https://x.com/1", "title": "T"}]})
+        with patch.object(client._session, "get", return_value=self._mock_response(200, payload)) as mock_get:
+            result = client.fetch("Houthi", "ArtList", distribute=True)
+
+        assert mock_get.call_count == 1
+        assert result is not None
+
+
+# ── _parse_timespan_days ──────────────────────────────────────────────────────────
+
+class TestParseTimespanDays:
+    def test_days_suffix(self):
+        assert _parse_timespan_days("30d") == 30
+        assert _parse_timespan_days("7d") == 7
+        assert _parse_timespan_days("90d") == 90
+
+    def test_weeks_suffix(self):
+        assert _parse_timespan_days("1w") == 7
+        assert _parse_timespan_days("2w") == 14
+
+    def test_months_suffix(self):
+        assert _parse_timespan_days("1m") == 30
+        assert _parse_timespan_days("3m") == 90
+
+    def test_hours_suffix(self):
+        assert _parse_timespan_days("24h") == 1
+        assert _parse_timespan_days("48h") == 2
+
+    def test_years_suffix(self):
+        assert _parse_timespan_days("1y") == 365
+
+    def test_plain_integer_treated_as_days(self):
+        assert _parse_timespan_days("30") == 30
+
+    def test_minimum_one_day_for_sub_day_inputs(self):
+        assert _parse_timespan_days("1h") == 1
+        assert _parse_timespan_days("15min") == 1
+
+    def test_invalid_string_returns_one(self):
+        assert _parse_timespan_days("bad") == 1
+        assert _parse_timespan_days("") == 1
 
 
 # ── GDELTClient context manager ───────────────────────────────────────────────────
