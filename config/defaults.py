@@ -82,6 +82,11 @@ ANTHROPIC_MODEL: str = "claude-sonnet-4-6"
 # Ollama model identifier
 OLLAMA_MODEL: str = "gemma3:27b"
 
+# Default Ollama server base URL.
+# Override via the OLLAMA_HOST environment variable or PipelineConfig(ollama_host=...)
+# for cloud-hosted Ollama instances (e.g. 'https://api.ollama.com') or custom deployments.
+OLLAMA_HOST: str = "http://localhost:11434"
+
 # Minimum max_tokens for structured extraction calls
 LLM_MIN_MAX_TOKENS: int = 256
 
