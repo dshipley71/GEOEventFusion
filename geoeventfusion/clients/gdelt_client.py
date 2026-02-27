@@ -18,8 +18,10 @@ from __future__ import annotations
 
 import ast
 import logging
+import math
 import re
 import time
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 from urllib.parse import urlencode
 
@@ -50,6 +52,41 @@ _HTTP_HEADER_PREFIXES = (
     "ETag:",
     "Last-Modified:",
 )
+
+
+# Regex for GDELT TIMESPAN strings like '30d', '2w', '3m', '48h', '15min', '1y'
+_TIMESPAN_RE = re.compile(r"^(\d+)(min|h|d|w|m|y)?$", re.IGNORECASE)
+
+
+def _parse_timespan_days(timespan: str) -> int:
+    """Convert a GDELT TIMESPAN string to an approximate number of days.
+
+    Handles the suffixes accepted by the GDELT DOC 2.0 API:
+    'd' (days), 'w' (weeks), 'h' (hours), 'm' (months ≈ 30 d),
+    'y' (years ≈ 365 d), 'min' (minutes).  A plain integer is treated as days.
+
+    Args:
+        timespan: GDELT TIMESPAN value, e.g. '30d', '2w', '3m', '48h'.
+
+    Returns:
+        Approximate number of days represented by the timespan (minimum 1).
+        Returns 1 on parse failure.
+    """
+    match = _TIMESPAN_RE.match(timespan.strip())
+    if not match:
+        logger.warning("Could not parse TIMESPAN %r — assuming 1 day", timespan)
+        return 1
+    value = int(match.group(1))
+    suffix = (match.group(2) or "d").lower()
+    days = {
+        "min": max(1, value // 1440),
+        "h":   max(1, value // 24),
+        "d":   value,
+        "w":   value * 7,
+        "m":   value * 30,
+        "y":   value * 365,
+    }.get(suffix, value)
+    return max(1, days)
 
 
 def _safe_parse_json(text: str) -> Optional[Any]:
@@ -228,6 +265,7 @@ class GDELTClient:
         end_date: Optional[str] = None,
         timespan: Optional[str] = None,
         timeline_smooth: int = 3,
+        distribute: bool = False,
         extra_params: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
         """Execute a GDELT DOC 2.0 API fetch.
@@ -247,11 +285,48 @@ class GDELTClient:
                 start_date/end_date for relative lookback windows; GDELT returns more
                 reliable responses with TIMESPAN than with explicit date ranges.
             timeline_smooth: Smoothing window for timeline modes (1–30).
+            distribute: ArtList only. When True, splits the time window into weekly
+                buckets (max 13) and fetches a proportional share of articles from
+                each bucket, returning up to max_records deduplicated articles spread
+                uniformly across the window instead of clustering at the most recent
+                end. Requires timespan or start_date+end_date; falls back to a normal
+                single-call fetch if no time window is provided. Has no effect for
+                non-ArtList modes.
             extra_params: Additional raw query parameters.
 
         Returns:
             Parsed API response dict, or None on failure.
         """
+        # ── Distributed ArtList fetch ──────────────────────────────────────────
+        if distribute and mode == "ArtList":
+            _start_dt: Optional[datetime] = None
+            _end_dt: Optional[datetime] = None
+
+            if timespan:
+                total_days = _parse_timespan_days(timespan)
+                _end_dt = datetime.utcnow()
+                _start_dt = _end_dt - timedelta(days=total_days)
+            elif start_date and end_date:
+                from geoeventfusion.utils.date_utils import gdelt_date_format
+
+                try:
+                    _start_dt = datetime.strptime(gdelt_date_format(start_date), "%Y%m%d%H%M%S")
+                    _end_dt = datetime.strptime(gdelt_date_format(end_date), "%Y%m%d%H%M%S")
+                except (ValueError, TypeError):
+                    logger.warning(
+                        "distribute=True: could not parse start/end dates — falling back to normal fetch"
+                    )
+            else:
+                logger.warning(
+                    "distribute=True: no timespan or date range provided — falling back to normal fetch"
+                )
+
+            if _start_dt is not None and _end_dt is not None:
+                return self._distribute_artlist_fetch(
+                    query, max_records, sort, _start_dt, _end_dt, extra_params
+                )
+
+        # ── Standard single-call fetch ─────────────────────────────────────────
         params: Dict[str, Any] = {
             "query": query,
             "mode": mode,
@@ -292,6 +367,104 @@ class GDELTClient:
         if parsed is None:
             logger.warning("GDELT returned unparseable body for mode=%s", mode)
         return parsed
+
+    def _distribute_artlist_fetch(
+        self,
+        query: str,
+        max_records: int,
+        sort: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        extra_params: Optional[Dict[str, Any]],
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch ArtList articles distributed evenly across a date range.
+
+        Divides [start_dt, end_dt] into weekly buckets (max 13) and fetches a
+        proportional share of articles from each bucket, returning up to
+        max_records deduplicated articles spread uniformly across the window.
+        Each bucket call goes through _get_with_retry, which enforces the
+        0.75 s stagger required by GDELT's rate limit.
+
+        Args:
+            query: GDELT query string.
+            max_records: Total article cap across all buckets.
+            sort: ArtList sort mode applied within each bucket.
+            start_dt: Window start (UTC).
+            end_dt: Window end (UTC).
+            extra_params: Additional raw parameters forwarded to every bucket call.
+
+        Returns:
+            {'articles': [...]} with up to max_records deduplicated articles,
+            or None if every bucket fetch failed or returned no articles.
+        """
+        total_days = max(1, (end_dt - start_dt).days)
+        num_buckets = max(1, min(math.ceil(total_days / 7), 13))
+        records_per_bucket = math.ceil(max_records / num_buckets)
+        bucket_size = (end_dt - start_dt) / num_buckets
+
+        logger.debug(
+            "GDELT distribute: %d records across %d weekly buckets (%d days total, %d per bucket)",
+            max_records, num_buckets, total_days, records_per_bucket,
+        )
+
+        all_articles: List[Dict[str, Any]] = []
+        seen_urls: set = set()
+
+        for i in range(num_buckets):
+            bucket_start = start_dt + bucket_size * i
+            # Align the final bucket's end exactly to end_dt to avoid float drift
+            bucket_end = end_dt if i == num_buckets - 1 else (start_dt + bucket_size * (i + 1))
+
+            params: Dict[str, Any] = {
+                "query": query,
+                "mode": "ArtList",
+                "format": "json",
+                "maxrecords": min(records_per_bucket, 250),
+                "sort": sort,
+                "startdatetime": bucket_start.strftime("%Y%m%d%H%M%S"),
+                "enddatetime": bucket_end.strftime("%Y%m%d%H%M%S"),
+            }
+            if extra_params:
+                params.update(extra_params)
+
+            url = self._build_url(params)
+            raw = self._get_with_retry(url)
+            if raw is None:
+                logger.warning(
+                    "GDELT distribute: bucket %d/%d returned no response — skipping",
+                    i + 1, num_buckets,
+                )
+                continue
+
+            parsed = _safe_parse_json(raw)
+            if parsed is None:
+                logger.warning(
+                    "GDELT distribute: bucket %d/%d returned unparseable body — skipping",
+                    i + 1, num_buckets,
+                )
+                continue
+
+            for article in (parsed.get("articles") or []):
+                article_url = article.get("url", "")
+                if article_url not in seen_urls:
+                    seen_urls.add(article_url)
+                    all_articles.append(article)
+                    if len(all_articles) >= max_records:
+                        logger.debug(
+                            "GDELT distribute: reached max_records=%d at bucket %d/%d",
+                            max_records, i + 1, num_buckets,
+                        )
+                        return {"articles": all_articles}
+
+        if not all_articles:
+            logger.warning("GDELT distribute: all %d buckets returned no articles", num_buckets)
+            return None
+
+        logger.debug(
+            "GDELT distribute: collected %d/%d articles across %d buckets",
+            len(all_articles), max_records, num_buckets,
+        )
+        return {"articles": all_articles}
 
     def close(self) -> None:
         """Close the underlying HTTP session."""
