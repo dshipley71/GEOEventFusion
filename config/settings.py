@@ -43,6 +43,7 @@ from config.defaults import (
     MIN_PANEL_CONFIDENCE,
     NEAR_MIN_TERM_LENGTH,
     NEAR_WINDOW,
+    OLLAMA_HOST,
     OLLAMA_MODEL,
     OUTPUT_ROOT,
     REPEAT_THRESHOLD,
@@ -104,7 +105,7 @@ class PipelineConfig:
     )
     ollama_model: str = field(default_factory=lambda: os.getenv("OLLAMA_MODEL", OLLAMA_MODEL))
     ollama_host: str = field(
-        default_factory=lambda: os.getenv("OLLAMA_HOST", "http://localhost:11434")
+        default_factory=lambda: os.getenv("OLLAMA_HOST", OLLAMA_HOST)
     )
     llm_temperature: float = LLM_TEMPERATURE
     llm_max_tokens: int = LLM_DEFAULT_MAX_TOKENS
