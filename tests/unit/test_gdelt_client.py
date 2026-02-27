@@ -282,6 +282,46 @@ class TestGDELTClientFetch:
         call_url = mock_get.call_args[0][0]
         assert "customkey=customval" in call_url
 
+    def test_fetch_timespan_adds_timespan_param(self):
+        """Providing timespan must add TIMESPAN parameter to the URL."""
+        client = self._make_client()
+
+        with patch.object(client._session, "get", return_value=self._mock_response()) as mock_get:
+            client.fetch("Houthi", "ArtList", timespan="30d")
+
+        call_url = mock_get.call_args[0][0]
+        assert "TIMESPAN=30d" in call_url
+
+    def test_fetch_timespan_excludes_startdatetime(self):
+        """When timespan is set, startdatetime must NOT appear in the URL."""
+        client = self._make_client()
+
+        with patch.object(client._session, "get", return_value=self._mock_response()) as mock_get:
+            client.fetch(
+                "Houthi",
+                "ArtList",
+                timespan="30d",
+                start_date="2026-01-01",
+                end_date="2026-02-27",
+            )
+
+        call_url = mock_get.call_args[0][0]
+        assert "TIMESPAN=30d" in call_url
+        assert "startdatetime" not in call_url
+        assert "enddatetime" not in call_url
+
+    def test_fetch_start_end_date_used_when_no_timespan(self):
+        """Without timespan, start_date and end_date must add their respective params."""
+        client = self._make_client()
+
+        with patch.object(client._session, "get", return_value=self._mock_response()) as mock_get:
+            client.fetch("Houthi", "ArtList", start_date="2026-01-01", end_date="2026-02-27")
+
+        call_url = mock_get.call_args[0][0]
+        assert "startdatetime" in call_url
+        assert "enddatetime" in call_url
+        assert "TIMESPAN" not in call_url
+
 
 # ── GDELTClient context manager ───────────────────────────────────────────────────
 

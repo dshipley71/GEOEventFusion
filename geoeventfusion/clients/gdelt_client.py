@@ -98,6 +98,7 @@ def _safe_parse_json(text: str) -> Optional[Any]:
     except (ValueError, SyntaxError):
         pass
 
+    logger.debug("GDELT unparseable response body: %.200s", text)
     logger.warning("Failed to parse GDELT response body (length=%d)", len(text))
     return None
 
@@ -225,6 +226,7 @@ class GDELTClient:
         sort: str = "DateDesc",
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
+        timespan: Optional[str] = None,
         timeline_smooth: int = 3,
         extra_params: Optional[Dict[str, Any]] = None,
     ) -> Optional[Dict[str, Any]]:
@@ -236,7 +238,14 @@ class GDELTClient:
             max_records: Maximum records to return (GDELT limit: 250 for ArtList).
             sort: Sort order for ArtList mode (DateDesc, ToneAsc, ToneDesc, HybridRel).
             start_date: Start date in YYYYMMDDHHMMSS or YYYY-MM-DD format.
+                Ignored when timespan is provided.
             end_date: End date in YYYYMMDDHHMMSS or YYYY-MM-DD format.
+                Ignored when timespan is provided.
+            timespan: GDELT TIMESPAN string (e.g. '7d', '30d', '90d', '1w', '1m').
+                When set, overrides start_date and end_date — GDELT treats TIMESPAN
+                and startdatetime/enddatetime as mutually exclusive. Prefer this over
+                start_date/end_date for relative lookback windows; GDELT returns more
+                reliable responses with TIMESPAN than with explicit date ranges.
             timeline_smooth: Smoothing window for timeline modes (1–30).
             extra_params: Additional raw query parameters.
 
@@ -256,15 +265,18 @@ class GDELTClient:
         if mode.startswith("Timeline") or mode == "ToneChart":
             params["TIMELINESMOOTH"] = timeline_smooth
 
-        if start_date:
-            from geoeventfusion.utils.date_utils import gdelt_date_format
+        if timespan:
+            params["TIMESPAN"] = timespan
+        else:
+            if start_date:
+                from geoeventfusion.utils.date_utils import gdelt_date_format
 
-            params["startdatetime"] = gdelt_date_format(start_date)
+                params["startdatetime"] = gdelt_date_format(start_date)
 
-        if end_date:
-            from geoeventfusion.utils.date_utils import gdelt_date_format
+            if end_date:
+                from geoeventfusion.utils.date_utils import gdelt_date_format
 
-            params["enddatetime"] = gdelt_date_format(end_date)
+                params["enddatetime"] = gdelt_date_format(end_date)
 
         if extra_params:
             params.update(extra_params)
