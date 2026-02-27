@@ -64,6 +64,9 @@ class LLMClient:
         anthropic_model: Anthropic model ID.
         ollama_model: Ollama model name.
         ollama_host: Ollama server URL.
+        ollama_api_key: Ollama Cloud API key for Bearer token auth. Required when
+            ollama_host points to Ollama Cloud (https://api.ollama.com). Leave
+            empty for local Ollama instances that do not require authentication.
         anthropic_api_key: Anthropic API key (from environment).
         max_confidence: Hard cap for LLM confidence scores.
     """
@@ -74,6 +77,7 @@ class LLMClient:
         anthropic_model: str = "claude-sonnet-4-6",
         ollama_model: str = "gemma3:27b",
         ollama_host: str = "http://localhost:11434",
+        ollama_api_key: str = "",
         anthropic_api_key: Optional[str] = None,
         max_confidence: float = 0.82,
     ) -> None:
@@ -81,6 +85,7 @@ class LLMClient:
         self.anthropic_model = anthropic_model
         self.ollama_model = ollama_model
         self.ollama_host = ollama_host
+        self.ollama_api_key = ollama_api_key
         self.anthropic_api_key = anthropic_api_key
         self.max_confidence = max_confidence
         self._anthropic_client: Optional[Any] = None
@@ -103,12 +108,19 @@ class LLMClient:
         return self._anthropic_client
 
     def _get_ollama_client(self) -> Any:
-        """Lazily initialize and return the Ollama client."""
+        """Lazily initialize and return the Ollama client.
+
+        When ollama_api_key is set, passes an Authorization: Bearer header
+        for Ollama Cloud (https://api.ollama.com) authentication.
+        """
         if self._ollama_client is None:
             try:
                 import ollama  # type: ignore[import]
 
-                self._ollama_client = ollama.Client(host=self.ollama_host)
+                kwargs: dict = {"host": self.ollama_host}
+                if self.ollama_api_key:
+                    kwargs["headers"] = {"Authorization": f"Bearer {self.ollama_api_key}"}
+                self._ollama_client = ollama.Client(**kwargs)
             except ImportError:
                 raise ImportError(
                     "ollama package is required for the Ollama backend. "

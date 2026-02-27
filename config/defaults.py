@@ -87,6 +87,11 @@ OLLAMA_MODEL: str = "gemma3:27b"
 # for cloud-hosted Ollama instances (e.g. 'https://api.ollama.com') or custom deployments.
 OLLAMA_HOST: str = "http://localhost:11434"
 
+# Ollama Cloud API key for Bearer token authentication.
+# Required when ollama_host points to Ollama Cloud (https://api.ollama.com).
+# Set via the OLLAMA_API_KEY environment variable; empty string disables auth headers.
+OLLAMA_API_KEY: str = ""
+
 # Minimum max_tokens for structured extraction calls
 LLM_MIN_MAX_TOKENS: int = 256
 
