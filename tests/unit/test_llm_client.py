@@ -274,6 +274,27 @@ class TestLLMClientCall:
 
         assert result is None
 
+    def test_call_auth_error_not_retried(self):
+        """A 401 Unauthorized exception must return None immediately without retrying.
+
+        Retrying an auth error is pointless — the API key won't change between
+        attempts. The backend method must be called exactly once, and None returned.
+        """
+        client = LLMClient(backend="anthropic")
+
+        auth_error = RuntimeError("unauthorized (status code: 401)")
+        auth_error.status_code = 401  # type: ignore[attr-defined]
+
+        with patch.object(
+            client, "_call_anthropic", side_effect=auth_error
+        ) as mock_backend:
+            result = client.call("sys", "prompt")
+
+        assert result is None
+        assert mock_backend.call_count == 1, (
+            "Backend must not be called a second time for a 401 auth error"
+        )
+
 
 # ── LLMClient.call_json ───────────────────────────────────────────────────────────
 
