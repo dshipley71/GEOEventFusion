@@ -224,6 +224,16 @@ class LLMClient:
                     max_tokens = max_tokens * 2
 
             except Exception as exc:
+                # 401 Unauthorized is non-retryable — the API key won't change between
+                # attempts. Fail immediately with an actionable error message.
+                if getattr(exc, "status_code", None) == 401:
+                    logger.error(
+                        "LLM authentication error (401 Unauthorized): %s — "
+                        "check ANTHROPIC_API_KEY / OLLAMA_API_KEY environment variable",
+                        exc,
+                    )
+                    return None
+
                 if attempt == 0:
                     logger.warning("LLM call failed (attempt 1): %s — retrying", exc)
                 else:
