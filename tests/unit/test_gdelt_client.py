@@ -12,6 +12,8 @@ No real HTTP calls are made — requests.Session.get is patched throughout.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from unittest.mock import MagicMock, call, patch
 
 import pytest
@@ -429,6 +431,76 @@ class TestParseTimespanDays:
     def test_invalid_string_returns_one(self):
         assert _parse_timespan_days("bad") == 1
         assert _parse_timespan_days("") == 1
+
+
+# ── _enforce_stagger thread-safety ────────────────────────────────────────────────
+
+class TestEnforceStagger:
+    def test_enforce_stagger_thread_safety(self):
+        """Two concurrent threads must be separated by at least stagger_seconds.
+
+        Both threads call _enforce_stagger() simultaneously on a shared client.
+        We record the monotonic timestamp at which each thread exits the stagger
+        lock and assert the two timestamps differ by at least stagger_seconds
+        (minus a small tolerance for scheduling jitter).
+        """
+        stagger = 0.1   # short value so the test runs quickly
+        client = GDELTClient(stagger_seconds=stagger)
+
+        timestamps: list[float] = []
+        barrier = threading.Barrier(2)  # synchronise both threads at the start
+
+        def _worker():
+            barrier.wait()              # both threads release simultaneously
+            client._enforce_stagger()
+            timestamps.append(time.monotonic())
+
+        t1 = threading.Thread(target=_worker)
+        t2 = threading.Thread(target=_worker)
+        t1.start()
+        t2.start()
+        t1.join()
+        t2.join()
+
+        assert len(timestamps) == 2
+        gap = abs(timestamps[1] - timestamps[0])
+        # The slower thread must exit the lock at least stagger_seconds after the faster one
+        assert gap >= stagger - 0.02, (
+            f"Stagger gap {gap:.3f}s < stagger_seconds {stagger}s — race condition detected"
+        )
+
+    def test_retry_reenforces_stagger_after_429(self):
+        """_enforce_stagger() must be called on every retry attempt, not just the first.
+
+        After a 429 backoff sleep, the next attempt must re-acquire the stagger
+        lock before making its request. We verify this by counting calls to
+        _enforce_stagger() across a 429-then-200 response sequence.
+        """
+        ok_response = MagicMock()
+        ok_response.status_code = 200
+        ok_response.text = '{"articles": []}'
+
+        rate_limit_response = MagicMock()
+        rate_limit_response.status_code = 429
+
+        client = GDELTClient(stagger_seconds=0.0, backoff_base=0.0)
+        stagger_call_count = [0]
+        original_enforce = client._enforce_stagger
+
+        def counting_enforce():
+            stagger_call_count[0] += 1
+            original_enforce()
+
+        client._enforce_stagger = counting_enforce
+
+        with patch.object(client._session, "get", side_effect=[rate_limit_response, ok_response]):
+            result = client._get_with_retry("https://example.com/fake")
+
+        # First call (attempt 0) + retry after 429 (attempt 1) = 2 calls
+        assert stagger_call_count[0] == 2, (
+            f"Expected _enforce_stagger called 2 times (once per attempt), got {stagger_call_count[0]}"
+        )
+        assert result == ok_response.text
 
 
 # ── GDELTClient context manager ───────────────────────────────────────────────────

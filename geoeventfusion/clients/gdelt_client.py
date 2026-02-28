@@ -20,6 +20,7 @@ import ast
 import logging
 import math
 import re
+import threading
 import time
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
@@ -165,6 +166,7 @@ class GDELTClient:
         self.request_timeout = request_timeout
         self.stagger_seconds = stagger_seconds
         self._last_request_time: float = 0.0
+        self._request_lock: threading.Lock = threading.Lock()
 
         self._session = Session()
         adapter = HTTPAdapter(max_retries=0)   # We handle retries manually
@@ -183,15 +185,28 @@ class GDELTClient:
         return f"{_GDELT_BASE_URL}?{urlencode(params)}"
 
     def _enforce_stagger(self) -> None:
-        """Enforce minimum delay between API submissions."""
-        now = time.monotonic()
-        elapsed = now - self._last_request_time
-        if elapsed < self.stagger_seconds:
-            time.sleep(self.stagger_seconds - elapsed)
-        self._last_request_time = time.monotonic()
+        """Enforce minimum delay between API submissions (thread-safe).
+
+        The lock ensures that when two worker threads both want to make a request,
+        one blocks until the other has both completed its sleep and updated
+        _last_request_time. Without the lock, both threads can read the same
+        elapsed value and race to fire simultaneous HTTP requests.
+        """
+        with self._request_lock:
+            now = time.monotonic()
+            elapsed = now - self._last_request_time
+            if elapsed < self.stagger_seconds:
+                time.sleep(self.stagger_seconds - elapsed)
+            self._last_request_time = time.monotonic()
 
     def _get_with_retry(self, url: str) -> Optional[str]:
         """Execute an HTTP GET with exponential backoff retry.
+
+        _enforce_stagger() is called at the top of every loop iteration — including
+        retries — so that after sleeping for a 429 backoff the thread re-acquires
+        the stagger lock before firing the next request. This prevents a thread
+        that woke from a backoff sleep from colliding with a concurrent thread that
+        is already mid-request.
 
         Args:
             url: URL to fetch.
@@ -199,9 +214,8 @@ class GDELTClient:
         Returns:
             Response text on success, None on exhausted retries.
         """
-        self._enforce_stagger()
-
         for attempt in range(self.max_retries + 1):
+            self._enforce_stagger()
             try:
                 resp = self._session.get(url, timeout=self.request_timeout)
 
