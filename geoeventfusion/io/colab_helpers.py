@@ -120,6 +120,10 @@ def mount_google_drive(mount_point: str = "/content/drive") -> bool:
         return False
 
 
+# Backward-compatible alias used by quickstart notebook
+download_run_artifacts = download_run_outputs
+
+
 def display_html_report(html_path: str | Path) -> None:
     """Display an HTML file inline in a Colab notebook cell.
 

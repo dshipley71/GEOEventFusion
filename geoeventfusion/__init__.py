@@ -10,8 +10,11 @@ __version__ = "1.0.0"
 __author__ = "GEOEventFusion Contributors"
 
 from config.settings import PipelineConfig
+from geoeventfusion.pipeline import run, run_pipeline
 
 __all__ = [
     "__version__",
     "PipelineConfig",
+    "run",
+    "run_pipeline",
 ]
