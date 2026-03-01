@@ -240,6 +240,10 @@ def run(
     return context
 
 
+# Convenience alias — used by notebooks, batch scripts, and external callers
+run_pipeline = run
+
+
 def _finalise(context: PipelineContext) -> None:
     """Record pipeline end time and emit a summary log line.
 

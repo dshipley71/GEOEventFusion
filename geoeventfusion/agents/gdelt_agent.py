@@ -77,6 +77,10 @@ class GDELTAgent(BaseAgent):
             GDELTAgentResult populated with all article pools, timelines, and analysis.
         """
         cfg = context.config
+
+        if cfg.test_mode:
+            return self._run_test_mode(context)
+
         result = GDELTAgentResult()
 
         start_date, end_date = parse_date_range(cfg.days_back)
@@ -429,6 +433,192 @@ class GDELTAgent(BaseAgent):
         return result
 
     # ── Private helpers ─────────────────────────────────────────────────────────
+
+    def _run_test_mode(self, context: Any) -> GDELTAgentResult:
+        """Return fixture data when test_mode=True — no real GDELT API calls.
+
+        Loads pre-built fixture files from tests/fixtures/ relative to the repo root.
+        Falls back to minimal synthetic data if fixture files are not found.
+
+        Args:
+            context: PipelineContext with config.
+
+        Returns:
+            GDELTAgentResult populated from fixture data.
+        """
+        import json
+        from datetime import datetime as _dt
+        from pathlib import Path
+
+        cfg = context.config
+        result = GDELTAgentResult()
+
+        # Locate fixture directory — works from repo root or installed package
+        pkg_dir = Path(__file__).resolve().parent  # agents/
+        candidates = [
+            pkg_dir.parent.parent / "tests" / "fixtures",   # repo layout
+            pkg_dir.parent / "tests" / "fixtures",           # alternate
+            Path("tests") / "fixtures",                      # cwd-relative
+        ]
+        fixtures_dir: Optional[Path] = next(
+            (p for p in candidates if p.is_dir()), None
+        )
+
+        # ── Load fixture articles ─────────────────────────────────────────────
+        articles: List[Article] = []
+        if fixtures_dir is not None:
+            artlist_path = fixtures_dir / "sample_artlist.json"
+            if artlist_path.exists():
+                with open(artlist_path, encoding="utf-8") as f:
+                    artlist_raw = json.load(f)
+                articles = _extract_articles_from_response(artlist_raw)
+
+        if not articles:
+            # Minimal synthetic fallback so downstream agents always have data
+            articles = [
+                Article(
+                    url="https://example.com/test-article-1",
+                    title="Test: Houthi forces attack merchant vessel in Red Sea",
+                    published_at="2024-01-15",
+                    source="example.com",
+                    domain="example.com",
+                    tone=-5.2,
+                    language="English",
+                    source_country="United States",
+                ),
+                Article(
+                    url="https://example.com/test-article-2",
+                    title="Test: US Navy intercepts Houthi missiles targeting commercial ships",
+                    published_at="2024-01-16",
+                    source="example.com",
+                    domain="example.com",
+                    tone=-6.1,
+                    language="English",
+                    source_country="United States",
+                ),
+                Article(
+                    url="https://example.com/test-article-3",
+                    title="Test: Red Sea crisis — shipping companies reroute around Africa",
+                    published_at="2024-01-17",
+                    source="example.com",
+                    domain="example.com",
+                    tone=-4.8,
+                    language="English",
+                    source_country="United Kingdom",
+                ),
+            ]
+
+        # ── Load fixture timeline ─────────────────────────────────────────────
+        timeline_volinfo: List[TimelineStep] = []
+        if fixtures_dir is not None:
+            timeline_path = fixtures_dir / "sample_timeline_volinfo.json"
+            if timeline_path.exists():
+                with open(timeline_path, encoding="utf-8") as f:
+                    timeline_raw = json.load(f)
+                timeline_volinfo = [
+                    TimelineStep(date=s["date"], value=float(s["value"]))
+                    for s in timeline_raw
+                    if isinstance(s, dict) and "date" in s and "value" in s
+                ]
+
+        if not timeline_volinfo:
+            # Minimal 10-step synthetic timeline with one spike
+            timeline_volinfo = [
+                TimelineStep(date=f"2024-01-{i:02d}", value=2.0 if i != 5 else 9.0)
+                for i in range(1, 11)
+            ]
+
+        # ── Load fixture tonechart ────────────────────────────────────────────
+        tonechart: List[ToneChartBin] = []
+        if fixtures_dir is not None:
+            tone_path = fixtures_dir / "sample_tonechart.json"
+            if tone_path.exists():
+                with open(tone_path, encoding="utf-8") as f:
+                    tone_raw = json.load(f)
+                tonechart = [
+                    ToneChartBin(
+                        tone_value=float(b.get("tone_value", b.get("tone", 0))),
+                        count=int(b.get("count", 0)),
+                    )
+                    for b in tone_raw
+                    if isinstance(b, dict)
+                ]
+
+        if not tonechart:
+            tonechart = [ToneChartBin(tone_value=float(t), count=max(1, 10 - abs(t)))
+                         for t in range(-10, 5)]
+
+        # ── Assign pools ──────────────────────────────────────────────────────
+        result.articles_recent = articles
+        result.articles_negative = articles
+        result.articles_positive = articles
+        result.articles_relevant = articles
+        result.articles_high_neg = articles
+        result.articles_high_emotion = articles
+        result.timeline_volinfo = timeline_volinfo
+        result.timeline_volraw = []
+        result.timeline_tone = [TimelineStep(date=s.date, value=-3.5) for s in timeline_volinfo]
+        result.timeline_lang = [
+            TimelineStep(date=s.date, value=s.value, label="English")
+            for s in timeline_volinfo
+        ]
+        result.timeline_country = [
+            TimelineStep(date=s.date, value=s.value, label="US")
+            for s in timeline_volinfo
+        ]
+        result.tonechart = tonechart
+
+        # ── Spike detection on fixture timeline ───────────────────────────────
+        result.spikes = detect_spikes(
+            timeline_volinfo,
+            z_threshold=cfg.spike_z_threshold,
+            query=cfg.query,
+        )[: cfg.max_spikes]
+
+        result.title_url_map = _build_title_url_map(articles)
+        result.vol_ratio = 0.005  # synthetic vol_ratio
+
+        # ── Tone/language/country stats ───────────────────────────────────────
+        if result.tonechart:
+            result.tone_stats = analyze_tone_distribution(result.tonechart)
+        if result.timeline_lang:
+            result.language_stats = compute_language_stats(result.timeline_lang)
+        if result.timeline_country:
+            result.country_stats = compute_country_stats(result.timeline_country)
+
+        # ── Actor graph ───────────────────────────────────────────────────────
+        triples = extract_actors_from_articles(articles)
+        if triples:
+            result.actor_graph = build_actor_graph(
+                triples,
+                hub_top_n=cfg.actor_hub_top_n,
+                broker_ratio_threshold=cfg.actor_broker_ratio_threshold,
+                pagerank_max_iter=cfg.actor_pagerank_max_iter,
+            )
+
+        # ── Run metadata ──────────────────────────────────────────────────────
+        result.run_metadata = RunMetadata(
+            query=cfg.query,
+            final_query=cfg.query + " [TEST MODE — fixture data]",
+            days_back=cfg.days_back,
+            start_date="2024-01-01",
+            end_date="2024-03-31",
+            record_counts={"articles_recent": len(articles)},
+            active_fetch_modes=["test_mode_fixture"],
+            run_timestamp=_dt.utcnow().isoformat() + "Z",
+        )
+
+        result.status = AgentStatus.OK
+        result.warnings.append(
+            "test_mode=True: loaded fixture data — no real GDELT API calls were made"
+        )
+        logger.info(
+            "GDELTAgent [test_mode]: %d fixture articles | %d timeline steps | %d spikes",
+            len(articles),
+            len(timeline_volinfo),
+            len(result.spikes),
+        )
+        return result
 
     def _fetch_one(
         self,

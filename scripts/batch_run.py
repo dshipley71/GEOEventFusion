@@ -216,7 +216,7 @@ def run_batch(
     Returns:
         List of run summary dicts (one per query).
     """
-    from geoeventfusion.pipeline import run_pipeline
+    from geoeventfusion.pipeline import run as run_pipeline
 
     results = []
     total = len(configs)
