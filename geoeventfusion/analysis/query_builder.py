@@ -110,10 +110,15 @@ class QueryBuilder:
             )
             parts.append(f"({alias_group})")
 
-        # GKG theme operators
+        # GKG theme operators — OR'd together so any matching theme broadens recall.
+        # AND-ing multiple theme: clauses requires ALL themes to appear simultaneously,
+        # which is far too restrictive and typically returns zero results.
         if gkg_themes:
-            for theme in gkg_themes:
-                parts.append(f"theme:{theme.upper()}")
+            if len(gkg_themes) == 1:
+                parts.append(f"theme:{gkg_themes[0].upper()}")
+            else:
+                theme_or = " OR ".join(f"theme:{t.upper()}" for t in gkg_themes)
+                parts.append(f"({theme_or})")
 
         # repeat<N>: relevance filter — only for single words
         if add_repeat:

@@ -298,6 +298,79 @@ class GDELTAgent(BaseAgent):
             articles = _extract_articles_from_response(raw)
             all_parsed_pools[key] = articles
 
+        # ── Bare-query fallback: retry without GKG themes when core pools are empty ──
+        # GKG themes AND'd together can make the query so restrictive that GDELT
+        # returns zero results even for well-known topics. If GKG themes were used
+        # AND all six core article pools are empty, re-fetch with just the bare
+        # phrase query to ensure at least some articles are available downstream.
+        core_keys = [
+            "articles_recent", "articles_negative", "articles_positive",
+            "articles_relevant", "articles_high_neg", "articles_high_emotion",
+        ]
+        total_core = sum(len(all_parsed_pools.get(k, [])) for k in core_keys)
+        if total_core == 0 and gkg_themes:
+            logger.warning(
+                "GDELTAgent: all core pools empty with GKG-enriched query — "
+                "retrying with bare phrase query"
+            )
+            bare_query = qb.build_base_query(cfg.query, add_repeat=True, add_near=True)
+            fallback_client = GDELTClient(
+                max_retries=cfg.gdelt_max_retries,
+                backoff_base=cfg.gdelt_backoff_base,
+                request_timeout=cfg.gdelt_request_timeout,
+                stagger_seconds=cfg.gdelt_stagger_seconds,
+            )
+            bare_tasks: List[Tuple[str, Dict[str, Any]]] = [
+                ("articles_recent", {
+                    "query": bare_query, "mode": "ArtList",
+                    "max_records": cfg.max_records, "sort": "DateDesc",
+                    "start_date": start_date, "end_date": end_date,
+                }),
+                ("articles_negative", {
+                    "query": bare_query, "mode": "ArtList",
+                    "max_records": cfg.max_records, "sort": "ToneAsc",
+                    "start_date": start_date, "end_date": end_date,
+                }),
+                ("articles_relevant", {
+                    "query": bare_query, "mode": "ArtList",
+                    "max_records": cfg.max_records, "sort": "HybridRel",
+                    "start_date": start_date, "end_date": end_date,
+                }),
+            ]
+            try:
+                bare_responses: Dict[str, Any] = {}
+                with ThreadPoolExecutor(max_workers=cfg.gdelt_max_workers) as ex:
+                    bare_futures = {}
+                    for pool_key, kwargs in bare_tasks:
+                        time.sleep(cfg.gdelt_stagger_seconds)
+                        f = ex.submit(self._fetch_one, fallback_client, pool_key, **kwargs)
+                        bare_futures[f] = pool_key
+                    for f in as_completed(bare_futures):
+                        pk = bare_futures[f]
+                        try:
+                            bare_responses[pk] = f.result()
+                        except Exception as exc:
+                            logger.warning("Bare-query fallback fetch %s failed: %s", pk, exc)
+                            bare_responses[pk] = None
+            finally:
+                fallback_client.close()
+
+            for key in core_keys:
+                raw = bare_responses.get(key)
+                if raw is not None:
+                    fallback_articles = _extract_articles_from_response(raw)
+                    if fallback_articles:
+                        all_parsed_pools[key] = fallback_articles
+                        result.warnings.append(
+                            f"GKG-enriched query returned no results; {key} "
+                            f"populated via bare-phrase fallback ({len(fallback_articles)} articles)"
+                        )
+            new_total = sum(len(all_parsed_pools.get(k, [])) for k in core_keys)
+            logger.info(
+                "GDELTAgent: bare-query fallback complete — %d core articles recovered",
+                new_total,
+            )
+
         # ── Domain diversity cap ────────────────────────────────────────────────
         for key in article_pool_keys:
             all_parsed_pools[key] = _apply_domain_cap(
