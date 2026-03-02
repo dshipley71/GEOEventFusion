@@ -46,7 +46,9 @@ The agent executes up to 13 parallel GDELT DOC 2.0 API calls across four functio
 - `"phrase"` — exact phrase matching
 - `(a OR b OR c)` — boolean OR for alias expansion (alternate spellings, abbreviations)
 - `-operator` — exclusion (e.g., `-sourcelang:spanish`)
-- `theme:<GKG_CODE>` — GKG theme codes with LLM-assisted suggestion
+- `(theme:A OR theme:B OR theme:C)` — GKG theme codes OR'd together via LLM suggestion.
+  **Critical:** multiple `theme:` clauses are AND'd by GDELT unless explicitly grouped with OR.
+  `QueryBuilder.build_base_query()` automatically wraps multiple themes in an OR group.
 - `near<N>:"term1 term2"` — proximity search (terms within N words)
 - `repeat<N>:"keyword"` — keyword must appear ≥N times in article; removes passing mentions
 - `tone<` / `tone>` — inline tone threshold filter (e.g., `tone<-5` for clearly negative)
@@ -85,6 +87,14 @@ A score near 0.0 indicates widely-recycled stock imagery. Images with a stalenes
 - Rate limit detection (HTTP 429) with exponential back-off (doubles per attempt)
 - Configurable record caps (GDELT maximum: 250 per ArtList call)
 - `vol_ratio` derivation from `TimelineVolRaw` norm field — measures story's share of total news space
+- **Bare-query fallback** — when all 6 core pools return empty with a GKG-enriched query, retries
+  `articles_recent`, `articles_negative`, and `articles_relevant` using a plain phrase query
+  (no theme operators) before declaring CRITICAL; prevents false-empty results from over-restrictive
+  GKG theme combinations
+- **Test mode (`test_mode=True`)** — `GDELTAgent._run_test_mode()` loads fixture JSON from
+  `tests/fixtures/` (artlist, timeline, tonechart) without making any real API calls; generates
+  synthetic fallback data if fixture files are absent; runs full spike detection and graph analysis
+  on fixture data so the complete pipeline can be validated offline
 
 ## 1.2 RSS Feed Processing
 
@@ -341,8 +351,24 @@ All chart modules share dark-theme constants from `visualization/theme.py`:
 - Environment-based credential handling via `python-dotenv`
 - Configurable record caps and thresholds — no magic numbers
 - Disk-level intermediate result caching for resumable phases
-- Test mode support via fixture data bypass
+- Test mode support via fixture data bypass (`GDELTAgent._run_test_mode()`)
 - Structured logging with run_id context
+
+## 9.1 Build System
+
+- `pyproject.toml` build backend: `setuptools.build_meta`
+  (compatible with setuptools 68.x+ including Google Colab; `setuptools.backends.legacy:build`
+  requires ≥ 70.3 and must not be used)
+- Install: `pip install -e ".[dev]"` from the repo root
+- For Colab: the install cell in `notebooks/quickstart.ipynb` detects the repo root
+  automatically before running `pip install -e .`
+
+## 9.2 Public API
+
+- `geoeventfusion.run_pipeline(config)` — canonical pipeline entry point (alias for `run()`)
+- `geoeventfusion.run(config)` — original function name; both are exported from `__init__.py`
+- `geoeventfusion.io.colab_helpers.download_run_artifacts(output_dir)` — Colab download
+  helper (alias for `download_run_outputs()`; used in `notebooks/quickstart.ipynb`)
 
 ---
 

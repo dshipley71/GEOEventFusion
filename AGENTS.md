@@ -194,7 +194,7 @@ context layer to the base query.
 | Phrase           | `"red sea attacks"`                   | Exact phrase anchor for the core query                       |
 | Boolean OR       | `(houthi OR "ansar allah" OR huthis)` | Alias expansion — ensures all spellings of a group are caught |
 | Exclusion        | `-sourcelang:spanish`                 | Remove languages causing false positives for a specific query |
-| `theme:`         | `theme:MARITIME_SECURITY`             | LLM-suggested GKG codes — broadens recall beyond exact phrases |
+| `theme:`         | `(theme:PROTESTS OR theme:IMMIGRATION)` | LLM-suggested GKG codes OR'd together — broadens recall. **Multiple theme: clauses are AND'd by GDELT unless grouped with OR.** `QueryBuilder` automatically wraps multiple themes in an OR group. |
 | `near<N>:`       | `near15:"houthi shipping"`            | Proximity search — terms must co-occur within N words         |
 | `repeat<N>:`     | `repeat3:"houthi"`                    | Filters to articles where keyword appears ≥N times; removes passing mentions |
 | `tone<` / `tone>`| `tone<-5`                             | Hard tone threshold filter applied to the query before sorting |
@@ -297,7 +297,23 @@ while values near 0.0 indicate widely-recycled stock imagery.
 
 ---
 
-### 2.1.5 Failure Handling
+### 2.1.5 Test Mode
+
+When `config.test_mode = True`, `GDELTAgent.run()` returns immediately via `_run_test_mode()`.
+No real GDELT API calls are made. Fixture data is loaded from:
+
+| Fixture File                              | Provides                                      |
+|-------------------------------------------|-----------------------------------------------|
+| `tests/fixtures/sample_artlist.json`      | Article pools (articles_recent, etc.)         |
+| `tests/fixtures/sample_timeline_volinfo.json` | Timeline volume data (timeline_volinfo)   |
+| `tests/fixtures/sample_tonechart.json`    | Tone histogram (tonechart)                    |
+
+If any fixture file is missing, `_run_test_mode()` generates synthetic fallback data (a minimal
+article list, a flat-volume timeline, and a neutral-tone histogram) so the pipeline can complete
+without fixture files present. Spike detection, actor graph, and tone/language/country stats are
+all computed from the fixture data as normal.
+
+### 2.1.6 Failure Handling
 
 | Failure Mode                          | Handling                                                                     |
 |---------------------------------------|------------------------------------------------------------------------------|
@@ -309,7 +325,8 @@ while values near 0.0 indicate widely-recycled stock imagery.
 | `HybridRel` returns no results        | Falls back to `DateDesc` for `articles_relevant` pool; logs info             |
 | Visual Intel fetch returns no images  | `visual_images = []`; pipeline continues; logs info                         |
 | `sourcecountry`/`sourcelang` fetch empty | Corresponding pool is empty list; no pipeline halt                        |
-| All article pools empty               | `GDELTAgentResult` marked `CRITICAL`; pipeline halts with descriptive error  |
+| All core pools empty + GKG themes used | Bare-query fallback: retries `articles_recent`, `articles_negative`, `articles_relevant` with plain phrase query (no theme operators); logs WARNING; continues with partial pools |
+| All article pools empty (no fallback possible) | `GDELTAgentResult` marked `CRITICAL`; pipeline halts with descriptive error |
 | Partial pools non-empty               | Downstream agents operate on whatever pools are non-empty; warnings logged   |
 
 ---
@@ -869,3 +886,16 @@ class PipelineContext:
 | No source-scoped article pools | Cell 11 | Added conditional `sourcecountry`/`sourcelang`/`domainis` pools |
 | `near<N>:` operator only used ad-hoc in enrichment | Cells 36, 10 | Formalized in `QueryBuilder` operator composition |
 | `repeat<N>:` operator not used | N/A | Added to `QueryBuilder` for relevance filtering |
+
+# 9. Resolved Bugs (v2.5 quickstart.ipynb — 2026-03-02)
+
+| Issue | Root Cause | Fix |
+|---|---|---|
+| `pip install -e .` fails with `BackendUnavailable` | `pyproject.toml` used `setuptools.backends.legacy:build` (requires setuptools ≥ 70.3; Colab ships 68.x) | Changed build-backend to `setuptools.build_meta` |
+| `ImportError: cannot import name 'run_pipeline'` | Pipeline function was named `run`; notebook imported `run_pipeline` | Added `run_pipeline = run` alias in `pipeline.py`; exported from `__init__.py` |
+| `AttributeError: 'download_run_artifacts'` | Colab helper function was named `download_run_outputs` | Added `download_run_artifacts = download_run_outputs` alias in `colab_helpers.py` |
+| `TypeError: str expected, not NoneType` on API key | `userdata.get(key)` returns `None` on missing secret; `os.environ[key] = None` raises TypeError | Added `_safe_colab_secret()` wrapper and `_set_env_if_value()` guard in notebook |
+| `userdata.get(key, '')` invalid | Colab `userdata.get()` does not accept a default argument | Replaced all calls with `_safe_colab_secret()` try/except wrapper |
+| `test_mode=True` still made 12 real GDELT API calls | Only LLM GKG theme call was skipped; GDELT fetches ran and returned 503s | Added early return `if cfg.test_mode: return self._run_test_mode(context)` in `GDELTAgent` |
+| `CRITICAL — all article pools empty` for "ICE protests" | GKG themes AND'd together — query required ALL 5 themes simultaneously; returned zero results | (1) Changed `QueryBuilder` to OR-group multiple themes; (2) Added bare-query fallback block |
+| No pipeline progress visible in Colab output | No logging configured before `run_pipeline()` call | Added logging setup cell (`cell-logging`) to `notebooks/quickstart.ipynb` |

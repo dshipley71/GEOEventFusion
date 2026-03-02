@@ -16,7 +16,7 @@ writing tests, or generating new modules.
 
 GEOEventFusion is a modular, multi-agent geopolitical intelligence pipeline that:
 
-1. Fetches global event data from GDELT DOC 2.0 (8-mode parallel queries)
+1. Fetches global event data from GDELT DOC 2.0 (up to 13-mode parallel queries)
 2. Detects coverage spikes and extracts actor graphs
 3. Enriches spikes with RSS full-text articles and ground-truth conflict datasets
 4. Uses an LLM to extract structured events, generate timelines, and debate hypotheses
@@ -265,6 +265,18 @@ Follow this checklist when adding a new agent:
   `(domainis:un.org OR domainis:state.gov)`.
 - `sourcecountry:` uses FIPS country codes, not ISO 3166. Check `LOOKUP-COUNTRIES.TXT` for codes.
   Spaces in country names are removed: `sourcecountry:saudiarabia` not `sourcecountry:saudi arabia`.
+- **`theme:` operators are AND'd by default in GDELT** — if you append multiple `theme:X` clauses
+  separately, the query requires ALL themes to appear simultaneously, which almost always returns
+  zero results for enriched queries (e.g., 5 GKG themes AND'd with a keyphrase). Always OR multiple
+  themes together: `(theme:PROTESTS OR theme:IMMIGRATION OR theme:HUMANRIGHTS)`.
+  `QueryBuilder.build_base_query()` handles this automatically since the v2.5 fix.
+
+**GDELT empty-pool fallback**
+- When all 6 core article pools return empty results AND GKG themes were used in the enriched
+  query, `GDELTAgent` automatically retries `articles_recent`, `articles_negative`, and
+  `articles_relevant` using a bare phrase query (no theme operators). This prevents a CRITICAL
+  halt for queries where GKG theme enrichment over-restricts recall. The fallback emits a
+  WARNING and populates only the three most diagnostically useful pools before proceeding.
 
 **HybridRel sort**
 - `HybridRel` is only available for content published after 2018-09-16. For older date windows,
@@ -319,6 +331,31 @@ Follow this checklist when adding a new agent:
 - All `nx` (NetworkX) calls must check `G.number_of_nodes() > 0` before computing centrality
   or PageRank — both raise on empty graphs.
 
+## 10.6 Build System
+- `pyproject.toml` must use `build-backend = "setuptools.build_meta"`. The alternative form
+  `setuptools.backends.legacy:build` only exists in setuptools ≥ 70.3 and will cause
+  `pip install -e .` to fail with `BackendUnavailable` on earlier versions (e.g., 68.x in
+  Google Colab). Never change this back.
+
+## 10.7 Public API Aliases
+- `pipeline.py` exports both `run()` (the canonical function) and `run_pipeline` (alias).
+  Notebooks and batch scripts should use `run_pipeline` for clarity:
+  `from geoeventfusion.pipeline import run_pipeline`
+- `geoeventfusion/__init__.py` exports both; importing `from geoeventfusion import run_pipeline`
+  also works.
+- `colab_helpers.py` exports both `download_run_outputs()` (canonical) and `download_run_artifacts`
+  (alias used in quickstart notebook).
+
+## 10.8 Google Colab — Notebook Setup
+- `userdata.get(key)` in Colab does **not** accept a default argument — it raises
+  `SecretNotFoundError` when the secret is missing (not returns `''`). Always wrap secret reads
+  in a try/except and guard `os.environ[key]` assignment with a non-empty string check.
+  Use the pattern in `notebooks/quickstart.ipynb` cell `cell-4` as the reference implementation.
+- `pip install -e .` must run from the repo root (`os.chdir(repo_root)`), not from `/content`.
+  The install cell detects the repo root by searching candidate paths for `pyproject.toml`.
+- Configure logging (`logging.basicConfig(...)`) before calling `run_pipeline()` so pipeline
+  progress is visible in notebook output. See `cell-logging` in `notebooks/quickstart.ipynb`.
+
 ---
 
 # 11. Test Conventions
@@ -342,8 +379,14 @@ The original notebook (`notebooks/gdelt_intelligence_pipeline_v2_4.ipynb`) is re
 a reference implementation. The canonical codebase is the `geoeventfusion/` Python package.
 
 The `notebooks/quickstart.ipynb` is the recommended Colab entry point — it imports the
-package and calls `pipeline.run(config)` directly. Never copy pipeline logic back into
+package and calls `run_pipeline(config)` directly. Never copy pipeline logic back into
 the notebook; keep notebooks thin.
+
+The notebook includes:
+- Automatic repo-root detection for Colab clone, Drive mount, and local Jupyter environments
+- Safe Colab Secrets reading with try/except guards (`_safe_colab_secret()`)
+- Logging configuration before pipeline execution for visible progress output
+- `test_mode=False` default with instructions for verifying install without API keys
 
 ---
 
@@ -380,3 +423,6 @@ When asked to modify a feature, use this map to find the right file:
 | CLI entrypoint                               | `scripts/run_pipeline.py`                                    |
 | All thresholds and defaults                  | `config/defaults.py`                                         |
 | Pipeline orchestration order                 | `geoeventfusion/pipeline.py`                                 |
+| Public API (`run`, `run_pipeline` aliases)   | `geoeventfusion/pipeline.py`, `geoeventfusion/__init__.py`   |
+| Quickstart notebook (Colab entry point)      | `notebooks/quickstart.ipynb`                                 |
+| GDELTAgent test mode + bare-query fallback   | `geoeventfusion/agents/gdelt_agent.py`                       |
